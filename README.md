@@ -7,5 +7,5 @@
 請參考 config.ini
 
 ### 特別感謝
-+ [PTT Library](https://github.com/Truth0906/PTTLibrary)
++ [PyPtt](https://github.com/PyPtt/PyPtt)
 + [Line Notify](https://notify-bot.line.me/zh_TW/)
