@@ -1,2 +1,2 @@
 requests
-PTTLibrary
+PyPtt==1.0.11

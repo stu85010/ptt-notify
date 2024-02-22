@@ -5,7 +5,7 @@ import sys
 import time
 
 import requests
-from PTTLibrary import PTT
+import PyPtt
 
 # 讀取 config.ini
 config = configparser.ConfigParser()
@@ -19,13 +19,36 @@ RefreshInterval = int(config['DEFAULT']['RefreshInterval'])
 LineContent = str(config['DEFAULT']['LineContent'])
 BoardFilterDict = dict(config._sections['BOARD'])
 
-# 宣告 PTTBot & 登入
-PTTBot = PTT.Library()
-LoginStatus = PTTBot.login(Username, Password)
-if LoginStatus != PTT.ErrorCode.Success:
-    PTTBot.Log('登入失敗')
-    sys.exit()
+def login():
+    max_retry = 5
 
+    ptt_bot = None
+    for retry_time in range(max_retry):
+        try:
+            ptt_bot = PyPtt.API()
+
+            ptt_bot.login(Username, Password,
+                kick_other_session=False if retry_time == 0 else True)
+            break
+        except PyPtt.exceptions.LoginError:
+            ptt_bot = None
+            print('登入失敗')
+            time.sleep(3)
+        except PyPtt.exceptions.LoginTooOften:
+            ptt_bot = None
+            print('請稍後再試')
+            time.sleep(60)
+        except PyPtt.exceptions.WrongIDorPassword:
+            print('帳號密碼錯誤')
+            raise
+        except Exception as e:
+            print('其他錯誤:', e)
+            break
+
+    return ptt_bot
+
+# 宣告 PTTBot & 登入
+PTTBot = login()
 
 #  時間戳
 def timestamp():
@@ -52,21 +75,21 @@ def sendMessage(message):
 
 # 傳入看板名稱、關鍵字，回傳文章編號及內容
 def getPTTNewestPost(boardname, filter):
-    ErrCode, NewestIndex = PTTBot.getNewestIndex(Board=boardname)
-    ErrCode, Post = PTTBot.getPost(boardname, PostIndex=NewestIndex)
+    NewestIndex = PTTBot.get_newest_index(index_type=PyPtt.NewIndex.BOARD, board=boardname)
+    Post = PTTBot.get_post(board=boardname, index=NewestIndex)
     # 導入正規表達式判斷關鍵字
     regex = re.compile(filter, re.IGNORECASE)
-    match = regex.search(str(Post.getTitle()))
+    match = regex.search(str(Post["title"]))
     # 如果正規表達式有篩選到關鍵字（不為空），便向下執行
     if match is not None:
-        print(timestamp() + '[資訊] ' + '符合篩選條件 - ' + boardname + ' ' + Post.getTitle())
+        print(timestamp() + '[資訊] ' + '符合篩選條件 - ' + boardname + ' ' + Post["title"])
         if LineContent == 'True':
             PostMessage = (
-                boardname + '\n' + str(Post.getTitle()) + '\n' + str(Post.getWebUrl()) + '\n' + str(Post.getContent())
+                boardname + '\n' + str(Post["title"]) + '\n' + str(Post["url"]) + '\n' + str(Post["content"])
                 )
         else:
             PostMessage = (
-                boardname + '\n' + str(Post.getTitle()) + '\n' + str(Post.getWebUrl())
+                boardname + '\n' + str(Post["title"]) + '\n' + str(Post["url"])
                 )
         return NewestIndex, PostMessage
     # 如果沒篩選到關鍵字，則回傳文章編號 = 0 以及空訊息
